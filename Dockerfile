@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.12.8
+FROM python:3.12.8 AS backend-build
 
 # Set work directory
 WORKDIR /app
@@ -8,6 +8,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry
@@ -20,15 +22,23 @@ ENV PATH="${PATH}:/root/.local/bin"
 # Copy project files
 COPY pyproject.toml poetry.lock* ./
 
-# Install project dependencies
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi
-
 # Copy the rest of the application
 COPY . .
 
-# Expose port 80
+# Build frontend
+WORKDIR /app/frontend
+RUN npm install
+RUN npm run build
+
+# Set work directory
+WORKDIR /app
+
+# Expose port
 EXPOSE 80
 
-# Use gunicorn to run the application
-CMD ["poetry", "run", "gunicorn", "-b", "0.0.0.0:80", "app:create_app()"]
+# Install backend dependencies
+RUN poetry config virtualenvs.create false
+RUN poetry install --no-interaction --no-ansi
+
+# Run the application
+CMD ["poetry", "run", "python", "app.py"]
