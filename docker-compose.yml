@@ -1,0 +1,52 @@
+services:
+  mysql:
+    image: mysql:9.1
+    container_name: flask-app-database
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-super_secure_root_password}
+      MYSQL_DATABASE: ${DB_NAME:-flask_app_db}
+      MYSQL_USER: ${DB_USER:-flask_app_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-strongpassword}
+    # expose for dev only
+    # ports:
+    #  - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - seccomp:unconfined
+
+  flask-app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${APP_NAME:-flask-dynamic-app}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - app-network
+    volumes:
+      - .:/app
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+    driver: local
